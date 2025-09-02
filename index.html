@@ -2,98 +2,190 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TTS 播放器 Pro+</title>
+  <title>TTS 播放器 Pro++</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      background: #1e1e2f;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 15px;
+      color: #ffcc00;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
+    }
+    .card {
+      background: #2a2a40;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+      width: 90%;
+      max-width: 800px;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      border: none;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 15px;
+      background: #1c1c2b;
+      color: #fff;
+      resize: vertical;
+      margin-bottom: 15px;
+    }
+    textarea:focus { outline: 2px solid #ffcc00; }
+    button {
+      background: #444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 4px;
+      transition: background 0.3s;
+    }
+    button:hover { background: #666; }
+    select, input[type="range"] {
+      background: #1c1c2b;
+      border: 1px solid #444;
+      color: #fff;
+      padding: 5px;
+      border-radius: 6px;
+      margin: 5px 0;
+    }
     #sentences {
       max-height: 200px;
       overflow-y: auto;
-      border: 1px solid #ccc;
-      padding: 5px;
+      border: 1px solid #444;
+      padding: 10px;
       margin-top: 10px;
+      background: #1c1c2b;
+      border-radius: 10px;
     }
     #sentences span {
       display: block;
       margin: 3px 0;
-      padding: 5px 8px;
-      border-radius: 4px;
+      padding: 6px 10px;
+      border-radius: 6px;
       cursor: pointer;
+      transition: background 0.2s;
     }
-    #sentences span.active { background: yellow; }
-    #sentences span.loop { background: orange; }
+    #sentences span:hover { background: rgba(255,255,255,0.1); }
+    #sentences span.active { background: #ffcc00; color: #000; font-weight: bold; }
+    #sentences span.loop { background: #ff6600; color: #fff; font-weight: bold; }
     .player {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: black;
-      padding: 10px;
-      border-radius: 10px;
-      width: 300px;
       margin-top: 20px;
+      gap: 25px;
     }
     .btn {
-      background: none;
+      background: #333;
       border: none;
       color: white;
-      font-size: 30px;
       cursor: pointer;
-      margin: 0 10px;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      transition: all 0.3s;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .btn:focus { outline: none; }
-    .playBtn { font-size: 50px; }
-    .status { margin-top: 10px; }
+    .btn:hover { background: #555; transform: scale(1.1); }
+    .playBtn {
+      background: #ffcc00;
+      width: 90px;
+      height: 90px;
+    }
+    .playBtn:hover { background: #ffdb4d; }
+    .btn svg {
+      width: 35px;
+      height: 35px;
+      fill: currentColor;
+    }
+    .playBtn svg { width: 45px; height: 45px; }
+    .status {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+      color: #ccc;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
-  <h2>🎤 TTS 播放器 Pro+ 文库版</h2>
+  <h2>🎤 TTS 播放器 Pro++</h2>
+  <div class="card">
+    <!-- 文库管理 -->
+    <div class="toolbar">
+      <label>📂 文库：
+        <select id="librarySelect"></select>
+      </label>
+      <button onclick="loadFromLibrary()">加载</button>
+      <button onclick="deleteFromLibrary()">删除</button>
+      <button onclick="saveToLibrary()">💾 保存</button>
+    </div>
 
-  <!-- 文库管理 -->
-  <div>
-    <label>📂 文库：
-      <select id="librarySelect"></select>
+    <!-- 文本编辑 -->
+    <textarea id="textInput" placeholder="输入文字，每句用句号、问号、感叹号或换行分开..."></textarea>
+    <button onclick="renderSentences()">📑 切分文本</button>
+
+    <!-- 句子列表 -->
+    <div id="sentences"></div>
+
+    <!-- 设置 -->
+    <br>
+    <label>语言：
+      <select id="langSelect">
+        <option value="en">英语</option>
+        <option value="da">丹麦语</option>
+      </select>
     </label>
-    <button onclick="loadFromLibrary()">加载</button>
-    <button onclick="deleteFromLibrary()">删除</button>
-  </div>
-  <br>
+    <br><br>
 
-  <!-- 文本编辑 -->
-  <textarea id="textInput" placeholder="输入文字，每句用句号、问号、感叹号或换行分开..." 
-            style="width:100%;height:120px;"></textarea><br><br>
-  <button onclick="saveToLibrary()">💾 保存到文库</button>
-  <button onclick="renderSentences()">📑 切分文本</button>
-  <div id="sentences"></div>
+    <label>语速：
+      <input type="range" id="rateControl" min="0.5" max="2" step="0.1">
+      <span id="rateValue"></span>x
+    </label>
 
-  <br>
-  <label>语言：
-    <select id="langSelect">
-      <option value="en">英语</option>
-      <option value="da">丹麦语</option>
-    </select>
-  </label>
-  <br><br>
+    <!-- 播放器控件 -->
+    <div class="player">
+      <button id="prevBtn" class="btn" title="上一句">
+        <svg viewBox="0 0 24 24"><path d="M6 6v12l8.5-6zM16 6v12h2V6z"/></svg>
+      </button>
+      <button id="playBtn" class="btn playBtn" title="播放/停止">
+        <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button id="nextBtn" class="btn" title="下一句">
+        <svg viewBox="0 0 24 24"><path d="M18 6v12l-8.5-6zM6 6v12h2V6z"/></svg>
+      </button>
+    </div>
 
-  <label>语速：
-    <input type="range" id="rateControl" min="0.5" max="2" step="0.1">
-    <span id="rateValue"></span>x
-  </label>
-  <br><br>
-
-  <!-- 播放器控件 -->
-  <div class="player">
-    <button id="prevBtn" class="btn">⏪</button>
-    <button id="playBtn" class="btn playBtn">▶️</button>
-    <button id="nextBtn" class="btn">⏩</button>
-  </div>
-
-  <div class="status">
-    <span id="progress">准备就绪</span>
+    <div class="status">
+      <span id="progress">准备就绪</span>
+    </div>
   </div>
 
   <script>
     const textInput = document.getElementById('textInput');
     const sentencesDiv = document.getElementById('sentences');
     const playBtn = document.getElementById('playBtn');
+    const playIcon = document.getElementById('playIcon');
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     const langSelect = document.getElementById('langSelect');
@@ -106,7 +198,7 @@
     let sentences = [];
     let currentIndex = 0;
     let isPlaying = false;
-    let loopIndex = null; // 双击循环的句子
+    let loopIndex = null;
 
     // 初始化用户设置
     rateControl.value = localStorage.getItem("rate") || 1;
@@ -119,7 +211,7 @@
     };
     langSelect.onchange = () => localStorage.setItem("lang", langSelect.value);
 
-    // --- 文库功能 ---
+    // 文库
     function refreshLibrary() {
       const library = JSON.parse(localStorage.getItem("ttsLibrary") || "{}");
       librarySelect.innerHTML = "";
@@ -130,7 +222,6 @@
         librarySelect.appendChild(option);
       });
     }
-
     function saveToLibrary() {
       const name = prompt("请输入文档名称：");
       if (!name) return;
@@ -138,9 +229,7 @@
       library[name] = textInput.value;
       localStorage.setItem("ttsLibrary", JSON.stringify(library));
       refreshLibrary();
-      alert("✅ 已保存：" + name);
     }
-
     function loadFromLibrary() {
       const name = librarySelect.value;
       if (!name) return;
@@ -148,7 +237,6 @@
       textInput.value = library[name] || "";
       renderSentences();
     }
-
     function deleteFromLibrary() {
       const name = librarySelect.value;
       if (!name) return;
@@ -158,16 +246,14 @@
       localStorage.setItem("ttsLibrary", JSON.stringify(library));
       refreshLibrary();
     }
-
     refreshLibrary();
 
-    // --- 播放逻辑 ---
+    // 播放逻辑
     function splitText() {
       const text = textInput.value.trim();
       if (!text) return [];
       return text.split(/[\.\?\!\n]+/).map(s => s.trim()).filter(s => s.length > 0);
     }
-
     function renderSentences() {
       sentences = splitText();
       sentencesDiv.innerHTML = "";
@@ -180,19 +266,15 @@
       });
       highlightSentence();
     }
-
     function highlightSentence() {
       const spans = sentencesDiv.querySelectorAll("span");
       spans.forEach((s, i) => {
         s.classList.toggle("active", i === currentIndex);
         s.classList.toggle("loop", i === loopIndex);
       });
-      if (spans[currentIndex]) {
-        spans[currentIndex].scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      if (spans[currentIndex]) spans[currentIndex].scrollIntoView({ behavior: "smooth", block: "center" });
       progress.textContent = sentences.length ? `第 ${currentIndex + 1} / ${sentences.length} 句` : "准备就绪";
     }
-
     function speakSentence(index) {
       if (speechSynthesis.speaking) speechSynthesis.cancel();
       if (index < 0 || index >= sentences.length) return;
@@ -201,7 +283,6 @@
 
       const text = sentences[currentIndex];
       if (!text) return;
-
       utterance = new SpeechSynthesisUtterance(text);
       const voices = speechSynthesis.getVoices();
       const voice = voices.find(v => v.lang.startsWith(langSelect.value));
@@ -216,37 +297,32 @@
           speakSentence(currentIndex);
         } else {
           isPlaying = false;
-          playBtn.textContent = "▶️";
+          playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>'; // 播放图标
         }
       };
 
       speechSynthesis.speak(utterance);
       isPlaying = true;
-      playBtn.textContent = "⏹️";
+      playIcon.innerHTML = '<path d="M6 19h4V5H6zm8-14v14h4V5h-4z"/>'; // 停止图标
     }
 
     playBtn.onclick = () => {
       if (isPlaying) {
         speechSynthesis.cancel();
         isPlaying = false;
-        playBtn.textContent = "▶️";
+        playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>'; // 播放图标
       } else {
         speakSentence(currentIndex);
       }
     };
-
     prevBtn.onclick = () => { if (currentIndex > 0) { currentIndex--; speakSentence(currentIndex); } };
     nextBtn.onclick = () => { if (currentIndex < sentences.length - 1) { currentIndex++; speakSentence(currentIndex); } };
 
     // 快捷键
     document.addEventListener("keydown", (e) => {
-      if (e.code === "Space" && !e.target.matches("textarea, input, select")) {
-        e.preventDefault(); playBtn.click();
-      } else if (e.code === "ArrowLeft") {
-        prevBtn.click();
-      } else if (e.code === "ArrowRight") {
-        nextBtn.click();
-      }
+      if (e.code === "Space" && !e.target.matches("textarea, input, select")) { e.preventDefault(); playBtn.click(); }
+      else if (e.code === "ArrowLeft") prevBtn.click();
+      else if (e.code === "ArrowRight") nextBtn.click();
     });
   </script>
 </body>
