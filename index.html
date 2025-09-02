@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>免费 TTS 播放器</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 150px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h2>免费 TTS 播放器（英语 / 丹麦语）</h2>
+
+  <textarea id="textInput" placeholder="输入文字..."></textarea><br><br>
+
+  <select id="langSelect">
+    <option value="en">英语</option>
+    <option value="da">丹麦语</option>
+  </select><br><br>
+
+  <button id="playBtn">播放</button>
+  <button id="pauseBtn">暂停</button>
+  <button id="stopBtn">停止</button>
+
+  <script>
+    const textInput = document.getElementById('textInput');
+    const playBtn = document.getElementById('playBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const langSelect = document.getElementById('langSelect');
+
+    let utterance;
+    let isPaused = false;
+
+    // 自动保存文本
+    textInput.value = localStorage.getItem('savedText') || '';
+    textInput.addEventListener('input', () => {
+      localStorage.setItem('savedText', textInput.value);
+    });
+
+    // 播放文本
+    playBtn.onclick = () => {
+      if (speechSynthesis.speaking && isPaused) {
+        speechSynthesis.resume();
+        isPaused = false;
+      } else if (!speechSynthesis.speaking) {
+        const text = textInput.value;
+        if (!text) return;
+
+        utterance = new SpeechSynthesisUtterance(text);
+        const voices = speechSynthesis.getVoices();
+        const lang = langSelect.value;
+        const voice = voices.find(v => v.lang.startsWith(lang));
+        if (voice) utterance.voice = voice;
+        utterance.rate = 1;
+
+        speechSynthesis.speak(utterance);
+      }
+    };
+
+    // 暂停
+    pauseBtn.onclick = () => {
+      if (speechSynthesis.speaking) {
+        speechSynthesis.pause();
+        isPaused = true;
+      }
+    };
+
+    // 停止
+    stopBtn.onclick = () => {
+      if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        isPaused = false;
+      }
+    };
+  </script>
+</body>
+</html>
