@@ -2,188 +2,188 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>免费 TTS 播放器</title>
+  <title>TTS 播放器</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
-    textarea { width: 100%; height: 150px; font-size: 16px; }
-    .controls { margin-top: 10px; }
-    #progressBar {
-      width: 100%; 
-      height: 20px; 
-      background: #eee; 
-      margin-top: 10px; 
-      border-radius: 5px; 
-      overflow: hidden;
+    #sentences span {
+      display: inline-block;
+      margin: 3px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
     }
-    #progressFill {
-      height: 100%; 
-      width: 0%; 
-      background: #4caf50;
+    #sentences span.active {
+      background: yellow;
     }
+    .player {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: black;
+      padding: 10px;
+      border-radius: 10px;
+      width: 300px;
+      margin-top: 20px;
+    }
+    .btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 30px;
+      cursor: pointer;
+      margin: 0 10px;
+    }
+    .btn:focus { outline: none; }
+    .playBtn { font-size: 50px; }
+    .repeat { margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h2>免费 TTS 播放器（英语 / 丹麦语）</h2>
+  <h2>🎤 TTS 播放器（英语 / 丹麦语）</h2>
 
-  <textarea id="textInput" placeholder="输入文字..."></textarea><br><br>
+  <textarea id="textInput" placeholder="输入文字，每句用句号、问号、感叹号或换行分开..." style="width:100%;height:120px;"></textarea><br><br>
+  <button onclick="renderSentences()">📑 切分文本</button>
+  <div id="sentences"></div>
 
-  <div class="controls">
-    <label>语言：
-      <select id="langSelect">
-        <option value="en">英语</option>
-        <option value="da">丹麦语</option>
-      </select>
-    </label>
-    <br><br>
-
-    <label>声音：
-      <select id="voiceSelect"></select>
-    </label>
-    <br><br>
-
-    <label>语速：
-      <input type="range" id="rateControl" min="0.5" max="2" step="0.1" value="1">
-      <span id="rateValue">1.0</span>x
-    </label>
-    <br><br>
-
-    <label>音量：
-      <input type="range" id="volumeControl" min="0" max="1" step="0.1" value="1">
-      <span id="volumeValue">100%</span>
-    </label>
-  </div>
   <br>
+  <label>语言：
+    <select id="langSelect">
+      <option value="en">英语</option>
+      <option value="da">丹麦语</option>
+    </select>
+  </label>
+  <br><br>
 
-  <button id="playBtn">播放</button>
-  <button id="pauseBtn">暂停</button>
-  <button id="stopBtn">停止</button>
+  <label>语速：
+    <input type="range" id="rateControl" min="0.5" max="2" step="0.1" value="1">
+    <span id="rateValue">1.0</span>x
+  </label>
+  <br><br>
 
-  <div id="progressBar">
-    <div id="progressFill"></div>
+  <div class="player">
+    <button id="prevBtn" class="btn">⏪</button>
+    <button id="playBtn" class="btn playBtn">▶️</button>
+    <button id="nextBtn" class="btn">⏩</button>
+  </div>
+
+  <div class="repeat">
+    <label>
+      <input type="checkbox" id="repeatCheck"> 🔁 重复播放当前句子
+    </label>
   </div>
 
   <script>
     const textInput = document.getElementById('textInput');
+    const sentencesDiv = document.getElementById('sentences');
     const playBtn = document.getElementById('playBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const stopBtn = document.getElementById('stopBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
     const langSelect = document.getElementById('langSelect');
     const rateControl = document.getElementById('rateControl');
     const rateValue = document.getElementById('rateValue');
-    const volumeControl = document.getElementById('volumeControl');
-    const volumeValue = document.getElementById('volumeValue');
-    const voiceSelect = document.getElementById('voiceSelect');
-    const progressFill = document.getElementById('progressFill');
+    const repeatCheck = document.getElementById('repeatCheck');
 
     let utterance;
-    let isPaused = false;
-    let resumeIndex = 0; // 停止位置继续
-    let currentText = "";
+    let sentences = [];
+    let currentIndex = 0;
+    let isPlaying = false;
 
-    // 自动保存文本
-    textInput.value = localStorage.getItem('savedText') || '';
-    textInput.addEventListener('input', () => {
-      localStorage.setItem('savedText', textInput.value);
-    });
-
-    // 语速 & 音量显示
+    // 语速显示
     rateControl.oninput = () => rateValue.textContent = rateControl.value;
-    volumeControl.oninput = () => volumeValue.textContent = Math.round(volumeControl.value * 100) + "%";
 
-    // 加载声音列表
-    function loadVoices() {
-      const voices = speechSynthesis.getVoices();
-      voiceSelect.innerHTML = "";
-      voices.forEach((v, i) => {
-        const option = document.createElement("option");
-        option.value = i;
-        option.textContent = `${v.name} (${v.lang})`;
-        voiceSelect.appendChild(option);
+    // 切分文本并显示句子
+    function splitText() {
+      const text = textInput.value.trim();
+      if (!text) return [];
+      return text.split(/[\.\?\!\n]+/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    function renderSentences() {
+      sentences = splitText();
+      sentencesDiv.innerHTML = "";
+      sentences.forEach((s, i) => {
+        const span = document.createElement("span");
+        span.textContent = s;
+        span.onclick = () => {
+          currentIndex = i;
+          highlightSentence();
+          speakSentence(i);
+        };
+        sentencesDiv.appendChild(span);
+      });
+      highlightSentence();
+    }
+
+    // 高亮当前句
+    function highlightSentence() {
+      const spans = sentencesDiv.querySelectorAll("span");
+      spans.forEach((s, i) => {
+        s.classList.toggle("active", i === currentIndex);
       });
     }
-    speechSynthesis.onvoiceschanged = loadVoices;
-    loadVoices();
 
-    // 播放
-    function playText() {
-      if (speechSynthesis.speaking && isPaused) {
-        speechSynthesis.resume();
-        isPaused = false;
-      } else if (!speechSynthesis.speaking) {
-        currentText = textInput.value;
-        if (!currentText) return;
+    // 播放当前句子
+    function speakSentence(index) {
+      if (speechSynthesis.speaking) speechSynthesis.cancel();
+      if (index < 0 || index >= sentences.length) return;
+      currentIndex = index;
+      highlightSentence();
 
-        // 从光标 或 上次停止位置 开始
-        let startIndex = resumeIndex || textInput.selectionStart || 0;
-        const playText = currentText.substring(startIndex);
+      const text = sentences[currentIndex];
+      if (!text) return;
 
-        utterance = new SpeechSynthesisUtterance(playText);
-        const voices = speechSynthesis.getVoices();
-        const chosenVoice = voices[voiceSelect.value];
-        if (chosenVoice) utterance.voice = chosenVoice;
-        utterance.lang = langSelect.value;
-        utterance.rate = parseFloat(rateControl.value);
-        utterance.volume = parseFloat(volumeControl.value);
+      utterance = new SpeechSynthesisUtterance(text);
+      const voices = speechSynthesis.getVoices();
+      const voice = voices.find(v => v.lang.startsWith(langSelect.value));
+      if (voice) utterance.voice = voice;
+      utterance.rate = parseFloat(rateControl.value);
 
-        // 高亮 + 进度条
-        utterance.onboundary = (e) => {
-          if (e.name === "word" || e.name === "sentence") {
-            const charIndex = startIndex + e.charIndex;
-            textInput.focus();
-            textInput.setSelectionRange(charIndex, charIndex + 1);
-            resumeIndex = charIndex;
-
-            // 更新进度条
-            const percent = Math.min(100, Math.round((charIndex / currentText.length) * 100));
-            progressFill.style.width = percent + "%";
+      utterance.onend = () => {
+        if (repeatCheck.checked) {
+          speakSentence(currentIndex);
+        } else {
+          if (currentIndex < sentences.length - 1) {
+            currentIndex++;
+            highlightSentence();
+            speakSentence(currentIndex);
+          } else {
+            isPlaying = false;
+            playBtn.textContent = "▶️";
           }
-        };
+        }
+      };
 
-        // 播放结束后重置
-        utterance.onend = () => {
-          resumeIndex = 0;
-          progressFill.style.width = "0%";
-        };
-
-        speechSynthesis.speak(utterance);
-      }
+      speechSynthesis.speak(utterance);
+      isPlaying = true;
+      playBtn.textContent = "⏹️";
     }
 
-    playBtn.onclick = playText;
-
-    // 暂停
-    pauseBtn.onclick = () => {
-      if (speechSynthesis.speaking) {
-        speechSynthesis.pause();
-        isPaused = true;
-      }
-    };
-
-    // 停止
-    stopBtn.onclick = () => {
-      if (speechSynthesis.speaking) {
+    // 播放/停止按钮
+    playBtn.onclick = () => {
+      if (isPlaying) {
         speechSynthesis.cancel();
-        isPaused = false;
+        isPlaying = false;
+        playBtn.textContent = "▶️";
+      } else {
+        speakSentence(currentIndex);
       }
     };
 
-    // 空格键控制 播放/暂停
-    document.addEventListener('keydown', (e) => {
-      if (e.code === "Space" && !e.target.matches("textarea, input, select")) {
-        e.preventDefault();
-        if (speechSynthesis.speaking) {
-          if (isPaused) {
-            speechSynthesis.resume();
-            isPaused = false;
-          } else {
-            speechSynthesis.pause();
-            isPaused = true;
-          }
-        } else {
-          playText();
-        }
+    // 上一条
+    prevBtn.onclick = () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        speakSentence(currentIndex);
       }
-    });
+    };
+
+    // 下一条
+    nextBtn.onclick = () => {
+      if (currentIndex < sentences.length - 1) {
+        currentIndex++;
+        speakSentence(currentIndex);
+      }
+    };
   </script>
 </body>
 </html>
