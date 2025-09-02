@@ -6,6 +6,20 @@
   <style>
     body { font-family: sans-serif; margin: 20px; }
     textarea { width: 100%; height: 150px; font-size: 16px; }
+    .controls { margin-top: 10px; }
+    #progressBar {
+      width: 100%; 
+      height: 20px; 
+      background: #eee; 
+      margin-top: 10px; 
+      border-radius: 5px; 
+      overflow: hidden;
+    }
+    #progressFill {
+      height: 100%; 
+      width: 0%; 
+      background: #4caf50;
+    }
   </style>
 </head>
 <body>
@@ -13,14 +27,40 @@
 
   <textarea id="textInput" placeholder="输入文字..."></textarea><br><br>
 
-  <select id="langSelect">
-    <option value="en">英语</option>
-    <option value="da">丹麦语</option>
-  </select><br><br>
+  <div class="controls">
+    <label>语言：
+      <select id="langSelect">
+        <option value="en">英语</option>
+        <option value="da">丹麦语</option>
+      </select>
+    </label>
+    <br><br>
+
+    <label>声音：
+      <select id="voiceSelect"></select>
+    </label>
+    <br><br>
+
+    <label>语速：
+      <input type="range" id="rateControl" min="0.5" max="2" step="0.1" value="1">
+      <span id="rateValue">1.0</span>x
+    </label>
+    <br><br>
+
+    <label>音量：
+      <input type="range" id="volumeControl" min="0" max="1" step="0.1" value="1">
+      <span id="volumeValue">100%</span>
+    </label>
+  </div>
+  <br>
 
   <button id="playBtn">播放</button>
   <button id="pauseBtn">暂停</button>
   <button id="stopBtn">停止</button>
+
+  <div id="progressBar">
+    <div id="progressFill"></div>
+  </div>
 
   <script>
     const textInput = document.getElementById('textInput');
@@ -28,9 +68,17 @@
     const pauseBtn = document.getElementById('pauseBtn');
     const stopBtn = document.getElementById('stopBtn');
     const langSelect = document.getElementById('langSelect');
+    const rateControl = document.getElementById('rateControl');
+    const rateValue = document.getElementById('rateValue');
+    const volumeControl = document.getElementById('volumeControl');
+    const volumeValue = document.getElementById('volumeValue');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const progressFill = document.getElementById('progressFill');
 
     let utterance;
     let isPaused = false;
+    let resumeIndex = 0; // 停止位置继续
+    let currentText = "";
 
     // 自动保存文本
     textInput.value = localStorage.getItem('savedText') || '';
@@ -38,25 +86,70 @@
       localStorage.setItem('savedText', textInput.value);
     });
 
-    // 播放文本
-    playBtn.onclick = () => {
+    // 语速 & 音量显示
+    rateControl.oninput = () => rateValue.textContent = rateControl.value;
+    volumeControl.oninput = () => volumeValue.textContent = Math.round(volumeControl.value * 100) + "%";
+
+    // 加载声音列表
+    function loadVoices() {
+      const voices = speechSynthesis.getVoices();
+      voiceSelect.innerHTML = "";
+      voices.forEach((v, i) => {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `${v.name} (${v.lang})`;
+        voiceSelect.appendChild(option);
+      });
+    }
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    // 播放
+    function playText() {
       if (speechSynthesis.speaking && isPaused) {
         speechSynthesis.resume();
         isPaused = false;
       } else if (!speechSynthesis.speaking) {
-        const text = textInput.value;
-        if (!text) return;
+        currentText = textInput.value;
+        if (!currentText) return;
 
-        utterance = new SpeechSynthesisUtterance(text);
+        // 从光标 或 上次停止位置 开始
+        let startIndex = resumeIndex || textInput.selectionStart || 0;
+        const playText = currentText.substring(startIndex);
+
+        utterance = new SpeechSynthesisUtterance(playText);
         const voices = speechSynthesis.getVoices();
-        const lang = langSelect.value;
-        const voice = voices.find(v => v.lang.startsWith(lang));
-        if (voice) utterance.voice = voice;
-        utterance.rate = 1;
+        const chosenVoice = voices[voiceSelect.value];
+        if (chosenVoice) utterance.voice = chosenVoice;
+        utterance.lang = langSelect.value;
+        utterance.rate = parseFloat(rateControl.value);
+        utterance.volume = parseFloat(volumeControl.value);
+
+        // 高亮 + 进度条
+        utterance.onboundary = (e) => {
+          if (e.name === "word" || e.name === "sentence") {
+            const charIndex = startIndex + e.charIndex;
+            textInput.focus();
+            textInput.setSelectionRange(charIndex, charIndex + 1);
+            resumeIndex = charIndex;
+
+            // 更新进度条
+            const percent = Math.min(100, Math.round((charIndex / currentText.length) * 100));
+            progressFill.style.width = percent + "%";
+          }
+        };
+
+        // 播放结束后重置
+        utterance.onend = () => {
+          resumeIndex = 0;
+          progressFill.style.width = "0%";
+        };
 
         speechSynthesis.speak(utterance);
       }
-    };
+    }
+
+    playBtn.onclick = playText;
 
     // 暂停
     pauseBtn.onclick = () => {
@@ -73,6 +166,24 @@
         isPaused = false;
       }
     };
+
+    // 空格键控制 播放/暂停
+    document.addEventListener('keydown', (e) => {
+      if (e.code === "Space" && !e.target.matches("textarea, input, select")) {
+        e.preventDefault();
+        if (speechSynthesis.speaking) {
+          if (isPaused) {
+            speechSynthesis.resume();
+            isPaused = false;
+          } else {
+            speechSynthesis.pause();
+            isPaused = true;
+          }
+        } else {
+          playText();
+        }
+      }
+    });
   </script>
 </body>
 </html>
