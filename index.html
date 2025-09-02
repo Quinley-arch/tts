@@ -2,19 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TTS 播放器</title>
+  <title>TTS 播放器 Pro+</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
+    #sentences {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 5px;
+      margin-top: 10px;
+    }
     #sentences span {
-      display: inline-block;
-      margin: 3px;
-      padding: 3px 6px;
+      display: block;
+      margin: 3px 0;
+      padding: 5px 8px;
       border-radius: 4px;
       cursor: pointer;
     }
-    #sentences span.active {
-      background: yellow;
-    }
+    #sentences span.active { background: yellow; }
+    #sentences span.loop { background: orange; }
     .player {
       display: flex;
       align-items: center;
@@ -35,13 +41,26 @@
     }
     .btn:focus { outline: none; }
     .playBtn { font-size: 50px; }
-    .repeat { margin-top: 10px; }
+    .status { margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h2>🎤 TTS 播放器（英语 / 丹麦语）</h2>
+  <h2>🎤 TTS 播放器 Pro+ 文库版</h2>
 
-  <textarea id="textInput" placeholder="输入文字，每句用句号、问号、感叹号或换行分开..." style="width:100%;height:120px;"></textarea><br><br>
+  <!-- 文库管理 -->
+  <div>
+    <label>📂 文库：
+      <select id="librarySelect"></select>
+    </label>
+    <button onclick="loadFromLibrary()">加载</button>
+    <button onclick="deleteFromLibrary()">删除</button>
+  </div>
+  <br>
+
+  <!-- 文本编辑 -->
+  <textarea id="textInput" placeholder="输入文字，每句用句号、问号、感叹号或换行分开..." 
+            style="width:100%;height:120px;"></textarea><br><br>
+  <button onclick="saveToLibrary()">💾 保存到文库</button>
   <button onclick="renderSentences()">📑 切分文本</button>
   <div id="sentences"></div>
 
@@ -55,21 +74,20 @@
   <br><br>
 
   <label>语速：
-    <input type="range" id="rateControl" min="0.5" max="2" step="0.1" value="1">
-    <span id="rateValue">1.0</span>x
+    <input type="range" id="rateControl" min="0.5" max="2" step="0.1">
+    <span id="rateValue"></span>x
   </label>
   <br><br>
 
+  <!-- 播放器控件 -->
   <div class="player">
     <button id="prevBtn" class="btn">⏪</button>
     <button id="playBtn" class="btn playBtn">▶️</button>
     <button id="nextBtn" class="btn">⏩</button>
   </div>
 
-  <div class="repeat">
-    <label>
-      <input type="checkbox" id="repeatCheck"> 🔁 重复播放当前句子
-    </label>
+  <div class="status">
+    <span id="progress">准备就绪</span>
   </div>
 
   <script>
@@ -81,17 +99,69 @@
     const langSelect = document.getElementById('langSelect');
     const rateControl = document.getElementById('rateControl');
     const rateValue = document.getElementById('rateValue');
-    const repeatCheck = document.getElementById('repeatCheck');
+    const progress = document.getElementById('progress');
+    const librarySelect = document.getElementById('librarySelect');
 
     let utterance;
     let sentences = [];
     let currentIndex = 0;
     let isPlaying = false;
+    let loopIndex = null; // 双击循环的句子
 
-    // 语速显示
-    rateControl.oninput = () => rateValue.textContent = rateControl.value;
+    // 初始化用户设置
+    rateControl.value = localStorage.getItem("rate") || 1;
+    rateValue.textContent = rateControl.value;
+    langSelect.value = localStorage.getItem("lang") || "en";
 
-    // 切分文本并显示句子
+    rateControl.oninput = () => {
+      rateValue.textContent = rateControl.value;
+      localStorage.setItem("rate", rateControl.value);
+    };
+    langSelect.onchange = () => localStorage.setItem("lang", langSelect.value);
+
+    // --- 文库功能 ---
+    function refreshLibrary() {
+      const library = JSON.parse(localStorage.getItem("ttsLibrary") || "{}");
+      librarySelect.innerHTML = "";
+      Object.keys(library).forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        librarySelect.appendChild(option);
+      });
+    }
+
+    function saveToLibrary() {
+      const name = prompt("请输入文档名称：");
+      if (!name) return;
+      const library = JSON.parse(localStorage.getItem("ttsLibrary") || "{}");
+      library[name] = textInput.value;
+      localStorage.setItem("ttsLibrary", JSON.stringify(library));
+      refreshLibrary();
+      alert("✅ 已保存：" + name);
+    }
+
+    function loadFromLibrary() {
+      const name = librarySelect.value;
+      if (!name) return;
+      const library = JSON.parse(localStorage.getItem("ttsLibrary") || "{}");
+      textInput.value = library[name] || "";
+      renderSentences();
+    }
+
+    function deleteFromLibrary() {
+      const name = librarySelect.value;
+      if (!name) return;
+      if (!confirm("确定删除文档：" + name + " 吗？")) return;
+      const library = JSON.parse(localStorage.getItem("ttsLibrary") || "{}");
+      delete library[name];
+      localStorage.setItem("ttsLibrary", JSON.stringify(library));
+      refreshLibrary();
+    }
+
+    refreshLibrary();
+
+    // --- 播放逻辑 ---
     function splitText() {
       const text = textInput.value.trim();
       if (!text) return [];
@@ -104,25 +174,25 @@
       sentences.forEach((s, i) => {
         const span = document.createElement("span");
         span.textContent = s;
-        span.onclick = () => {
-          currentIndex = i;
-          highlightSentence();
-          speakSentence(i);
-        };
+        span.onclick = () => { currentIndex = i; highlightSentence(); speakSentence(i); };
+        span.ondblclick = () => { loopIndex = (loopIndex === i ? null : i); highlightSentence(); };
         sentencesDiv.appendChild(span);
       });
       highlightSentence();
     }
 
-    // 高亮当前句
     function highlightSentence() {
       const spans = sentencesDiv.querySelectorAll("span");
       spans.forEach((s, i) => {
         s.classList.toggle("active", i === currentIndex);
+        s.classList.toggle("loop", i === loopIndex);
       });
+      if (spans[currentIndex]) {
+        spans[currentIndex].scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      progress.textContent = sentences.length ? `第 ${currentIndex + 1} / ${sentences.length} 句` : "准备就绪";
     }
 
-    // 播放当前句子
     function speakSentence(index) {
       if (speechSynthesis.speaking) speechSynthesis.cancel();
       if (index < 0 || index >= sentences.length) return;
@@ -139,17 +209,14 @@
       utterance.rate = parseFloat(rateControl.value);
 
       utterance.onend = () => {
-        if (repeatCheck.checked) {
+        if (loopIndex === currentIndex) {
+          speakSentence(currentIndex);
+        } else if (currentIndex < sentences.length - 1) {
+          currentIndex++;
           speakSentence(currentIndex);
         } else {
-          if (currentIndex < sentences.length - 1) {
-            currentIndex++;
-            highlightSentence();
-            speakSentence(currentIndex);
-          } else {
-            isPlaying = false;
-            playBtn.textContent = "▶️";
-          }
+          isPlaying = false;
+          playBtn.textContent = "▶️";
         }
       };
 
@@ -158,7 +225,6 @@
       playBtn.textContent = "⏹️";
     }
 
-    // 播放/停止按钮
     playBtn.onclick = () => {
       if (isPlaying) {
         speechSynthesis.cancel();
@@ -169,21 +235,19 @@
       }
     };
 
-    // 上一条
-    prevBtn.onclick = () => {
-      if (currentIndex > 0) {
-        currentIndex--;
-        speakSentence(currentIndex);
-      }
-    };
+    prevBtn.onclick = () => { if (currentIndex > 0) { currentIndex--; speakSentence(currentIndex); } };
+    nextBtn.onclick = () => { if (currentIndex < sentences.length - 1) { currentIndex++; speakSentence(currentIndex); } };
 
-    // 下一条
-    nextBtn.onclick = () => {
-      if (currentIndex < sentences.length - 1) {
-        currentIndex++;
-        speakSentence(currentIndex);
+    // 快捷键
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && !e.target.matches("textarea, input, select")) {
+        e.preventDefault(); playBtn.click();
+      } else if (e.code === "ArrowLeft") {
+        prevBtn.click();
+      } else if (e.code === "ArrowRight") {
+        nextBtn.click();
       }
-    };
+    });
   </script>
 </body>
 </html>
